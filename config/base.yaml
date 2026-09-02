@@ -8,10 +8,17 @@ source:
   arxiv:
     category: null # The categories of target arxiv papers. Find the abbr of your research area from [here](https://arxiv.org/category_taxonomy). Example: ["cs.AI","cs.CV","cs.LG","cs.CL"]
     include_cross_list: false # Whether to include arXiv cross-list papers in subscribed categories. Example: true
-  openalex:
-    lookback_days: 7
-    per_page: 50
-    tracked_authors: []
+openalex:
+  lookback_days: 7
+  per_page: 50
+  tracked_authors: []
+
+  semantic_search: true
+  semantic_seed_count: 5
+  semantic_per_page: 50
+  semantic_types:
+    - article
+    - conference-paper
   biorxiv:
     category: null # The categories of target biorxiv papers. Find categories from [here](https://www.biorxiv.org/). Example: ["biochemistry","animal behavior and cognition"]
   medrxiv:
