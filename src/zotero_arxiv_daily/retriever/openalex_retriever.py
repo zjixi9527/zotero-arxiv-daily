@@ -202,81 +202,78 @@ if self.semantic_search and self.corpus:
             raw_papers.append(work)
             added_count += 1
 
-        # Semantic discovery based on recent Zotero papers
-if self.semantic_search and self.corpus:
+                # Semantic discovery based on recent Zotero papers
+        if self.semantic_search and self.corpus:
+            seed_papers = sorted(
+                self.corpus,
+                key=lambda p: p.added_date,
+                reverse=True,
+            )[:self.semantic_seed_count]
 
-    seed_papers = sorted(
-        self.corpus,
-        key=lambda p: p.added_date,
-        reverse=True,
-    )[:self.semantic_seed_count]
+            query_parts = []
 
-    query_parts = []
+            for paper in seed_papers:
+                title = (paper.title or "").strip()
+                abstract = (paper.abstract or "").strip()
 
-    for paper in seed_papers:
-        title = (paper.title or "").strip()
-        abstract = (paper.abstract or "").strip()
+                query_parts.append(
+                    f"{title}. {abstract[:350]}"
+                )
 
-        # Keep each seed compact so the combined query stays informative.
-        query_parts.append(
-            f"{title}. {abstract[:350]}"
-        )
+            semantic_query = "\n".join(query_parts)[:2000]
 
-    semantic_query = "\n".join(query_parts)[:2000]
+            if semantic_query:
+                logger.info(
+                    f"Searching OpenAlex semantically using "
+                    f"{len(seed_papers)} recent Zotero papers"
+                )
 
-    if semantic_query:
-        logger.info(
-            f"Searching OpenAlex semantically using "
-            f"{len(seed_papers)} recent Zotero papers"
-        )
+                filters = [
+                    f"from_publication_date:{from_date}",
+                    "has_abstract:true",
+                ]
 
-        filters = [
-            f"from_publication_date:{from_date}",
-            "has_abstract:true",
-        ]
+                if self.semantic_types:
+                    filters.append(
+                        "type:" + "|".join(self.semantic_types)
+                    )
 
-        if self.semantic_types:
-            filters.append(
-                "type:" + "|".join(self.semantic_types)
-            )
+                params = {
+                    "search.semantic": semantic_query,
+                    "filter": ",".join(filters),
+                    "per_page": self.semantic_per_page,
+                }
 
-        params = {
-            "search.semantic": semantic_query,
-            "filter": ",".join(filters),
-            "per_page": self.semantic_per_page,
-        }
+                response = requests.get(
+                    OPENALEX_WORKS_URL,
+                    params=params,
+                    headers=headers,
+                    timeout=REQUEST_TIMEOUT,
+                )
+                response.raise_for_status()
 
-        response = requests.get(
-            OPENALEX_WORKS_URL,
-            params=params,
-            headers=headers,
-            timeout=REQUEST_TIMEOUT,
-        )
-        response.raise_for_status()
+                semantic_results = response.json().get(
+                    "results", []
+                )
 
-        semantic_results = response.json().get(
-            "results", []
-        )
+                if self.config.executor.debug:
+                    semantic_results = semantic_results[:10]
 
-        if self.config.executor.debug:
-            semantic_results = semantic_results[:10]
+                added_count = 0
 
-        added_count = 0
+                for work in semantic_results:
+                    work_id = work.get("id")
 
-        for work in semantic_results:
-            work_id = work.get("id")
+                    if not work_id or work_id in seen_work_ids:
+                        continue
 
-            if not work_id or work_id in seen_work_ids:
-                continue
+                    seen_work_ids.add(work_id)
+                    raw_papers.append(work)
+                    added_count += 1
 
-            seen_work_ids.add(work_id)
-            raw_papers.append(work)
-            added_count += 1
-
-        
-        logger.info(
-            f"Retrieved {len(raw_papers)} unique OpenAlex works"
-        )
+                logger.info(
+                    f"Added {added_count} semantic OpenAlex works"
+                )
 
         return raw_papers
 
