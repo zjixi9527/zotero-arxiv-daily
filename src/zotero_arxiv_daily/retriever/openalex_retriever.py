@@ -177,11 +177,11 @@ class OpenAlexRetriever(BaseRetriever):
 
                 # Use title plus a compact abstract fragment.
                 query_parts.append(
-                    f"{title}. {abstract[:350]}"
+                    f"{title}. {abstract[:100]}"
                 )
 
             # OpenAlex semantic search uses up to 2,000 characters.
-            semantic_query = "\n".join(query_parts)[:2000]
+            semantic_query = "\n".join(query_parts)[:800]
 
             if semantic_query:
                 logger.info(
