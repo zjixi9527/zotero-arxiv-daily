@@ -99,6 +99,8 @@ class Executor:
         all_papers = []
         for source, retriever in self.retrievers.items():
             logger.info(f"Retrieving {source} papers...")
+            if hasattr(retriever, "set_corpus"):
+                 retriever.set_corpus(corpus)
             papers = retriever.retrieve_papers()
             if len(papers) == 0:
                 logger.info(f"No {source} papers found")
