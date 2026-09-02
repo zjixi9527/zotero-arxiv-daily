@@ -45,14 +45,28 @@ class OpenAlexRetriever(BaseRetriever):
         self.tracked_authors = (
             self.retriever_config.get("tracked_authors") or []
         )
+        self.corpus = []
 
+        self.semantic_search = bool(
+            self.retriever_config.get("semantic_search", True)
+        )
+
+        self.semantic_seed_count = int(
+            self.retriever_config.get("semantic_seed_count", 5)
+        )
+
+        self.semantic_per_page = min(
+            int(self.retriever_config.get("semantic_per_page", 50)),
+            50,
+        )
+
+        self.semantic_types = list(
+            self.retriever_config.get("semantic_types")
+            or ["article", "conference-paper"]
+        )
+    def set_corpus(self, corpus):
+        self.corpus = list(corpus or [])
     def _retrieve_raw_papers(self) -> list[dict]:
-        if not self.tracked_authors:
-            logger.info(
-                "No tracked OpenAlex authors configured; "
-                "skipping OpenAlex retrieval."
-            )
-            return []
 
         from_date = (
             datetime.now(timezone.utc)
