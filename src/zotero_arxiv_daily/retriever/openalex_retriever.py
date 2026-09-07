@@ -54,7 +54,7 @@ class OpenAlexRetriever(BaseRetriever):
         self.lookback_days = int(
             self.retriever_config.get(
                 "lookback_days",
-                7,
+                3,
             )
         )
 
@@ -62,7 +62,7 @@ class OpenAlexRetriever(BaseRetriever):
             int(
                 self.retriever_config.get(
                     "per_page",
-                    50,
+                    20,
                 )
             ),
             100,
@@ -75,7 +75,7 @@ class OpenAlexRetriever(BaseRetriever):
             or []
         )
 
-        # Zotero papers used to define
+        # Zotero corpus used to describe
         # the user's current research interests.
         self.corpus = []
 
@@ -93,11 +93,13 @@ class OpenAlexRetriever(BaseRetriever):
             )
         )
 
+        # OpenAlex semantic search supports
+        # at most 50 results per query.
         self.semantic_per_page = min(
             int(
                 self.retriever_config.get(
                     "semantic_per_page",
-                    30,
+                    50,
                 )
             ),
             50,
@@ -112,8 +114,10 @@ class OpenAlexRetriever(BaseRetriever):
 
     def set_corpus(self, corpus):
         """
-        Receive the filtered Zotero corpus
-        from Executor.
+        Receive filtered Zotero papers from Executor.
+
+        These papers are used to automatically
+        represent the user's current research interests.
         """
 
         self.corpus = list(
@@ -121,6 +125,10 @@ class OpenAlexRetriever(BaseRetriever):
         )
 
     def _get_headers(self) -> dict:
+        """
+        Construct OpenAlex request headers.
+        """
+
         headers = {}
 
         if self.api_key:
@@ -137,8 +145,8 @@ class OpenAlexRetriever(BaseRetriever):
         seen_work_ids: set,
     ) -> int:
         """
-        Add works while removing duplicates
-        based on OpenAlex Work ID.
+        Add OpenAlex works while removing duplicates
+        according to OpenAlex Work ID.
         """
 
         added = 0
@@ -163,23 +171,28 @@ class OpenAlexRetriever(BaseRetriever):
         self,
     ) -> list[dict]:
 
+        now = datetime.now(timezone.utc)
+
         from_date = (
-            datetime.now(timezone.utc)
+            now
             - timedelta(
                 days=self.lookback_days
             )
         ).date().isoformat()
+
+        current_year = now.year
 
         headers = self._get_headers()
 
         raw_papers = []
         seen_work_ids = set()
 
-        # =========================================================
-        # 1. Track explicitly selected researchers
-        # =========================================================
+        # =====================================================
+        # 1. Retrieve papers from explicitly tracked authors
+        # =====================================================
 
         for author in self.tracked_authors:
+
             author_id = author.get(
                 "openalex_id"
             )
@@ -217,6 +230,7 @@ class OpenAlexRetriever(BaseRetriever):
             }
 
             try:
+
                 response = requests.get(
                     OPENALEX_WORKS_URL,
                     params=params,
@@ -228,22 +242,28 @@ class OpenAlexRetriever(BaseRetriever):
                     logger.warning(
                         "OpenAlex author request "
                         f"failed for {author_name}: "
-                        f"HTTP {response.status_code} - "
+                        f"HTTP "
+                        f"{response.status_code} - "
                         f"{response.text[:500]}"
                     )
                     continue
 
                 results = (
                     response.json()
-                    .get("results", [])
+                    .get(
+                        "results",
+                        [],
+                    )
                 )
 
             except requests.RequestException as exc:
+
                 logger.warning(
                     "OpenAlex author request "
                     f"failed for {author_name}: "
                     f"{exc}"
                 )
+
                 continue
 
             if self.config.executor.debug:
@@ -261,14 +281,17 @@ class OpenAlexRetriever(BaseRetriever):
                 f"added {added} unique works"
             )
 
-        # =========================================================
-        # 2. Discover papers based on Zotero research interests
-        # =========================================================
+        # =====================================================
+        # 2. Semantic discovery based on Zotero interests
+        # =====================================================
 
         if (
             self.semantic_search
             and self.corpus
         ):
+
+            # Use recently added Zotero papers
+            # as the current research-interest profile.
             seed_papers = sorted(
                 self.corpus,
                 key=lambda paper: (
@@ -279,12 +302,12 @@ class OpenAlexRetriever(BaseRetriever):
                 : self.semantic_seed_count
             ]
 
-            # Use titles only.
+            # Titles are intentionally used instead
+            # of long abstracts.
             #
-            # This is deliberately simple:
-            # OpenAlex does the first semantic search,
-            # then Jina uses the whole Zotero corpus
-            # for the final ranking.
+            # OpenAlex performs the broad semantic retrieval,
+            # then Jina compares the returned candidates
+            # against the entire Zotero corpus.
             seed_titles = [
                 (paper.title or "").strip()
                 for paper in seed_papers
@@ -296,6 +319,7 @@ class OpenAlexRetriever(BaseRetriever):
             )[:700]
 
             if semantic_query:
+
                 logger.info(
                     "Searching OpenAlex "
                     "semantically using "
@@ -303,11 +327,18 @@ class OpenAlexRetriever(BaseRetriever):
                     "recent Zotero paper titles"
                 )
 
+                # IMPORTANT:
+                #
+                # OpenAlex Semantic Search currently rejects
+                # from_publication_date.
+                #
+                # Therefore:
+                # 1. restrict the API query to current year;
+                # 2. retrieve semantic candidates;
+                # 3. locally keep only papers within
+                #    lookback_days.
                 filters = [
-                    (
-                        "from_publication_date:"
-                        f"{from_date}"
-                    ),
+                    f"publication_year:{current_year}",
                     "has_abstract:true",
                 ]
 
@@ -332,6 +363,7 @@ class OpenAlexRetriever(BaseRetriever):
                 }
 
                 try:
+
                     response = requests.get(
                         OPENALEX_WORKS_URL,
                         params=params,
@@ -340,6 +372,7 @@ class OpenAlexRetriever(BaseRetriever):
                     )
 
                     if not response.ok:
+
                         logger.warning(
                             "OpenAlex semantic "
                             "search failed: "
@@ -349,12 +382,58 @@ class OpenAlexRetriever(BaseRetriever):
                         )
 
                     else:
-                        semantic_results = (
+
+                        all_semantic_results = (
                             response.json()
                             .get(
                                 "results",
                                 [],
                             )
+                        )
+
+                        logger.info(
+                            "OpenAlex semantic "
+                            "search returned "
+                            f"{len(all_semantic_results)} "
+                            f"candidate works "
+                            f"from {current_year}"
+                        )
+
+                        # -------------------------------------
+                        # Apply exact recent-date filtering
+                        # locally.
+                        #
+                        # OpenAlex publication_date uses
+                        # YYYY-MM-DD format, so lexical
+                        # comparison is valid here.
+                        # -------------------------------------
+
+                        semantic_results = []
+
+                        for work in all_semantic_results:
+
+                            publication_date = (
+                                work.get(
+                                    "publication_date"
+                                )
+                                or ""
+                            )
+
+                            if not publication_date:
+                                continue
+
+                            if publication_date < from_date:
+                                continue
+
+                            semantic_results.append(
+                                work
+                            )
+
+                        logger.info(
+                            f"{len(semantic_results)} "
+                            "semantic OpenAlex works "
+                            f"were published since "
+                            f"{from_date}"
                         )
 
                         if (
@@ -363,9 +442,7 @@ class OpenAlexRetriever(BaseRetriever):
                             .debug
                         ):
                             semantic_results = (
-                                semantic_results[
-                                    :10
-                                ]
+                                semantic_results[:10]
                             )
 
                         added_count = (
@@ -378,21 +455,24 @@ class OpenAlexRetriever(BaseRetriever):
 
                         logger.info(
                             "OpenAlex semantic "
-                            "search returned "
-                            f"{len(semantic_results)} "
-                            "works; added "
+                            "search added "
                             f"{added_count} "
-                            "unique works"
+                            "unique recent works"
                         )
 
                 except requests.RequestException as exc:
-                    # Semantic discovery is optional.
-                    # Never let it break the entire
-                    # daily recommendation workflow.
+
+                    # Semantic discovery is supplementary.
+                    # It should never break the entire
+                    # daily paper recommendation workflow.
                     logger.warning(
                         "OpenAlex semantic "
                         f"search failed: {exc}"
                     )
+
+        # =====================================================
+        # Final retrieval summary
+        # =====================================================
 
         logger.info(
             f"Retrieved "
@@ -406,6 +486,10 @@ class OpenAlexRetriever(BaseRetriever):
         self,
         raw_paper: dict,
     ) -> Paper:
+        """
+        Convert an OpenAlex work object
+        into the project's Paper format.
+        """
 
         title = (
             raw_paper.get("title")
@@ -421,6 +505,7 @@ class OpenAlexRetriever(BaseRetriever):
             "authorships",
             [],
         ):
+
             author = (
                 authorship.get("author")
                 or {}
@@ -439,9 +524,9 @@ class OpenAlexRetriever(BaseRetriever):
             )
         )
 
-        # Jina needs text to embed.
+        # Jina needs some text to embed.
         # If OpenAlex has no abstract,
-        # fall back to the title.
+        # use the paper title instead.
         if not abstract:
             abstract = title
 
