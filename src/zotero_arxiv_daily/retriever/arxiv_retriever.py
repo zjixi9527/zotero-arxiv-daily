@@ -109,6 +109,10 @@ def _extract_text_from_tar_worker(source_url: str, paper_id: str, paper_title: s
 
 @register_retriever("arxiv")
 class ArxivRetriever(BaseRetriever):
+    # convert_to_paper downloads full text via subprocess + network,
+    # so conversion must stay serial to avoid overloading arXiv.
+    concurrency_safe = False
+
     def __init__(self, config):
         super().__init__(config)
         if self.config.source.arxiv.category is None:

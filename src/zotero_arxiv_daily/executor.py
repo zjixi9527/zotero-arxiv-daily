@@ -1,4 +1,5 @@
 import random
+import socket
 from datetime import datetime
 
 from loguru import logger
@@ -37,8 +38,25 @@ def normalize_path_patterns(
 
 
 class Executor:
+    # Required, non-empty configuration fields (dotted path -> human-readable label).
+    # These fail fast at construction time instead of deep inside the pipeline.
+    _REQUIRED_FIELDS = {
+        "zotero.user_id": "Zotero user ID",
+        "zotero.api_key": "Zotero API key",
+        "email.sender": "email sender",
+        "email.receiver": "email receiver",
+        "email.smtp_server": "SMTP server",
+        "email.smtp_port": "SMTP port",
+        "email.sender_password": "SMTP password",
+        "llm.api.key": "LLM API key",
+        "llm.api.base_url": "LLM API base URL",
+        "llm.generation_kwargs.model": "LLM model",
+    }
+
     def __init__(self, config: DictConfig):
         self.config = config
+
+        self._validate_config()
 
         self.include_path_patterns = normalize_path_patterns(
             config.zotero.include_path,
@@ -58,6 +76,64 @@ class Executor:
             api_key=config.llm.api.key,
             base_url=config.llm.api.base_url,
         )
+
+    @staticmethod
+    def _get_config_field(config: DictConfig, dotted_path: str):
+        """Return the value at ``dotted_path`` (e.g. "email.smtp_port") or ``None`` if absent."""
+        node = config
+        for part in dotted_path.split("."):
+            try:
+                node = getattr(node, part)
+            except AttributeError:
+                return None
+        return node
+
+    def _validate_config(self) -> None:
+        """Fail fast with a friendly message when the config is clearly unusable.
+
+        Catches empty/missing required fields, an out-of-range SMTP port, and
+        references to retriever sources that have no config section. Live
+        connectivity (Zotero/SMTP handshake) is intentionally left to a
+        ``doctor``-style check so construction stays deterministic and quick.
+        """
+        errors: list[str] = []
+        cfg = self.config
+
+        for dotted_path, label in self._REQUIRED_FIELDS.items():
+            value = self._get_config_field(cfg, dotted_path)
+            if value is None or (isinstance(value, str) and not value.strip()):
+                errors.append(f"config.{dotted_path} ({label}) is empty or missing")
+
+        port = self._get_config_field(cfg, "email.smtp_port")
+        if port is not None:
+            try:
+                port_value = int(port)
+            except (TypeError, ValueError):
+                errors.append(f"config.email.smtp_port must be an integer, got {port!r}")
+            else:
+                if not 1 <= port_value <= 65535:
+                    errors.append(f"config.email.smtp_port must be in 1..65535, got {port_value}")
+
+        # Every enabled source must have a config section under config.source.
+        enabled_sources = self._get_config_field(cfg, "executor.source")
+        if enabled_sources:
+            for source in enabled_sources:
+                if not hasattr(cfg.source, source):
+                    errors.append(
+                        f"config.executor.source references {source!r}, but no config.source.{source} section exists"
+                    )
+
+        # Best-effort SMTP hostname resolution: warn only, never fail the run,
+        # since the host may become resolvable later (e.g. in the runner VPC).
+        smtp_server = self._get_config_field(cfg, "email.smtp_server")
+        if isinstance(smtp_server, str) and smtp_server:
+            try:
+                socket.gethostbyname(smtp_server)
+            except OSError:
+                logger.warning(f"Could not resolve SMTP server hostname {smtp_server!r}; will retry at send time.")
+
+        if errors:
+            raise ValueError("Configuration validation failed:\n  - " + "\n  - ".join(errors))
 
     def fetch_zotero_corpus(self) -> list[CorpusPaper]:
         logger.info("Fetching zotero corpus")

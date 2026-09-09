@@ -161,6 +161,74 @@ def test_fetch_zotero_corpus_paper_with_zero_collections(config, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# _validate_config — Q5 fail-fast config validation
+# ---------------------------------------------------------------------------
+
+
+def _validator_for(config):
+    executor = Executor.__new__(Executor)
+    executor.config = config
+    return executor
+
+
+def test_validate_config_accepts_well_formed_config(config):
+    _validator_for(config)._validate_config()  # should not raise
+
+
+def test_validate_config_rejects_empty_required_field(config):
+    from omegaconf import open_dict
+
+    with open_dict(config):
+        config.email.sender = ""
+    with pytest.raises(ValueError, match="email.sender"):
+        _validator_for(config)._validate_config()
+
+
+def test_validate_config_rejects_out_of_range_port(config):
+    from omegaconf import open_dict
+
+    with open_dict(config):
+        config.email.smtp_port = 0
+    with pytest.raises(ValueError, match="smtp_port"):
+        _validator_for(config)._validate_config()
+
+
+def test_validate_config_rejects_non_integer_port(config):
+    from omegaconf import open_dict
+
+    with open_dict(config):
+        config.email.smtp_port = "not-a-port"
+    with pytest.raises(ValueError, match="smtp_port"):
+        _validator_for(config)._validate_config()
+
+
+def test_validate_config_rejects_unknown_source(config, monkeypatch):
+    from omegaconf import open_dict
+
+    with open_dict(config):
+        config.executor.source = ["nonexistent-source"]
+    with pytest.raises(ValueError, match="nonexistent-source"):
+        _validator_for(config)._validate_config()
+
+
+def test_validate_config_warns_but_does_not_fail_on_unresolvable_smtp(config, monkeypatch, caplog):
+    import socket
+
+    from omegaconf import open_dict
+
+    with open_dict(config):
+        config.email.smtp_server = "smtp.unresolvable.invalid"
+
+    def _boom(host):
+        raise OSError(f"cannot resolve {host}")
+
+    monkeypatch.setattr(socket, "gethostbyname", _boom)
+    with caplog.at_level("WARNING"):
+        _validator_for(config)._validate_config()  # should not raise
+    assert any("smtp.unresolvable.invalid" in record.message for record in caplog.records)
+
+
+# ---------------------------------------------------------------------------
 # E2E: Executor.run()
 # ---------------------------------------------------------------------------
 

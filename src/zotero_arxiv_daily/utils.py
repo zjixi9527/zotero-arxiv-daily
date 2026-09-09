@@ -8,6 +8,7 @@ from collections import Counter
 from email.header import Header
 from email.mime.text import MIMEText
 from email.utils import formataddr, parseaddr
+from time import sleep
 
 import pymupdf
 import pymupdf.layout
@@ -20,6 +21,47 @@ pymupdf.layout.activate()
 import pymupdf4llm  # noqa: E402
 
 _TOKEN_RE = re.compile(r"[a-zA-Z0-9]+")
+
+
+def call_with_retry(
+    func,
+    /,
+    *args,
+    retries: int = 10,
+    base_delay: float = 10.0,
+    backoff_factor: float = 1.0,
+    max_delay: float = 60.0,
+    what: str = "request",
+    **kwargs,
+):
+    """Invoke ``func(*args, **kwargs)``, retrying on failure with a sleep backoff.
+
+    The last failure (after ``retries`` attempts) is re-raised. ``backoff_factor=1.0``
+    (the default) keeps a fixed delay between attempts, preserving the behaviour of the
+    retry snippets it replaces; pass ``backoff_factor > 1`` for exponential backoff.
+
+    Args:
+        func: Callable to invoke; receives ``*args`` and ``**kwargs``.
+        retries: Total number of attempts (including the first).
+        base_delay: Seconds to wait before the first retry.
+        backoff_factor: Multiplier applied to the delay after each retry.
+        max_delay: Upper bound (seconds) for the delay.
+        what: Human-readable operation name used in warning logs (e.g. "fetch arXiv").
+    """
+    delay = base_delay
+    last_exc: Exception | None = None
+    for attempt in range(retries):
+        try:
+            return func(*args, **kwargs)
+        except Exception as exc:
+            last_exc = exc
+            if attempt == retries - 1:
+                break
+            if what:
+                logger.warning(f"Failed to {what}: {exc}. Retry {attempt + 1}/{retries} in {delay:.0f}s.")
+            sleep(delay)
+            delay = min(delay * backoff_factor, max_delay)
+    raise last_exc
 
 
 def _tokenize(text: str) -> list[str]:

@@ -41,6 +41,10 @@ class FailingTestRetriever(BaseRetriever):
 
 @register_retriever("serial_test")
 class SerialTestRetriever(BaseRetriever):
+    # Mutates shared state (self.seen_titles) on each conversion, so it must
+    # run serially and preserve ordering.
+    concurrency_safe = False
+
     def __init__(self, config, seen_titles: list[str]):
         super().__init__(config)
         self.seen_titles = seen_titles
@@ -91,6 +95,31 @@ def test_retrieve_papers_runs_serially(config, monkeypatch):
     papers = retriever.retrieve_papers()
     assert seen == ["paper 1", "paper 2", "paper 3"]
     assert [p.title for p in papers] == ["paper 1", "paper 2", "paper 3"]
+
+
+@register_retriever("parallel_test")
+class ParallelTestRetriever(BaseRetriever):
+    def _retrieve_raw_papers(self) -> list[dict[str, str]]:
+        return [{"title": f"parallel paper {i}"} for i in range(12)]
+
+    def convert_to_paper(self, raw_paper: dict[str, str]) -> Paper:
+        return Paper(
+            source=self.name,
+            title=raw_paper["title"],
+            authors=[],
+            abstract="",
+            url=f"https://example.com/{raw_paper['title']}",
+        )
+
+
+def test_retrieve_papers_concurrency_safe_runs_in_parallel(config, monkeypatch):
+    """A concurrency-safe retriever converts all papers (order is not guaranteed)."""
+    monkeypatch.setattr("zotero_arxiv_daily.retriever.base.sleep", lambda _: None)
+    with open_dict(config.source):
+        config.source.parallel_test = {}
+    retriever = ParallelTestRetriever(config)
+    papers = retriever.retrieve_papers()
+    assert {p.title for p in papers} == {f"parallel paper {i}" for i in range(12)}
 
 
 def test_retrieve_papers_skips_none_results(config, monkeypatch):

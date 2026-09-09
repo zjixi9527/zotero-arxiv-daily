@@ -1,13 +1,13 @@
 import html
 import re
 from datetime import UTC, datetime, timedelta
-from time import sleep
 from typing import Any
 
 import requests
 from loguru import logger
 
 from ..protocol import Paper
+from ..utils import call_with_retry
 from .base import BaseRetriever, register_retriever
 
 
@@ -41,23 +41,18 @@ class ChemrxivRetriever(BaseRetriever):
     _tag = re.compile(r"<[^>]+>")
 
     def _get_json(self, params: dict[str, Any]) -> dict[str, Any]:
-        retry_num = 10
-        delay_time = 10
-        for i in range(retry_num):
-            try:
-                response = requests.get(
-                    self.api_url,
-                    params=params,
-                    headers=self.request_headers,
-                    timeout=60,
-                )
-                response.raise_for_status()
-                return response.json()
-            except Exception as exc:
-                if i == retry_num - 1:
-                    raise
-                logger.warning(f"Failed to retrieve papers: {exc}. Retry in {delay_time} seconds.")
-                sleep(delay_time)
+
+        def _fetch() -> dict[str, Any]:
+            response = requests.get(
+                self.api_url,
+                params=params,
+                headers=self.request_headers,
+                timeout=60,
+            )
+            response.raise_for_status()
+            return response.json()
+
+        return call_with_retry(_fetch, retries=10, base_delay=10, what="fetch chemRxiv batch")
 
     @staticmethod
     def _parse_date(value: str | None) -> datetime | None:

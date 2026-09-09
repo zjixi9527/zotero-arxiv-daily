@@ -7,7 +7,13 @@ import tarfile
 import pytest
 
 from tests.canned_responses import make_stub_smtp
-from zotero_arxiv_daily.utils import _bm25_pick, extract_tex_code_from_tar, glob_match, send_email
+from zotero_arxiv_daily.utils import (
+    _bm25_pick,
+    call_with_retry,
+    extract_tex_code_from_tar,
+    glob_match,
+    send_email,
+)
 
 # ---------------------------------------------------------------------------
 # glob_match — migrated from test_glob_match.py
@@ -186,6 +192,66 @@ def test_send_email_falls_back_to_plain(config, monkeypatch):
     monkeypatch.setattr(smtplib, "SMTP_SSL", StubSMTP_SSL_Fails)
     send_email(config, "<html>plain</html>")
     assert len(sent) == 1
+
+
+# ---------------------------------------------------------------------------
+# call_with_retry
+# ---------------------------------------------------------------------------
+
+
+def test_call_with_retry_succeeds_on_first_try():
+    calls = []
+
+    def _work():
+        calls.append(1)
+        return "ok"
+
+    assert call_with_retry(_work, retries=3, base_delay=0) == "ok"
+    assert calls == [1]
+
+
+def test_call_with_retry_retries_then_succeeds(monkeypatch):
+    import zotero_arxiv_daily.utils as utils
+
+    monkeypatch.setattr(utils, "sleep", lambda _: None)
+    calls = []
+
+    def _work():
+        calls.append(1)
+        if len(calls) < 3:
+            raise RuntimeError("transient")
+        return "recovered"
+
+    assert call_with_retry(_work, retries=5, base_delay=1, what="test") == "recovered"
+    assert calls == [1, 1, 1]
+
+
+def test_call_with_retry_raises_after_all_attempts(monkeypatch):
+    import zotero_arxiv_daily.utils as utils
+
+    monkeypatch.setattr(utils, "sleep", lambda _: None)
+    calls = []
+
+    def _fail():
+        calls.append(1)
+        raise ValueError("boom")
+
+    with pytest.raises(ValueError, match="boom"):
+        call_with_retry(_fail, retries=3, base_delay=1, what="test")
+    assert calls == [1, 1, 1]
+
+
+def test_call_with_retry_forwards_args_and_kwargs():
+    captured = {}
+
+    def _work(a, b=0):
+        captured["a"] = a
+        captured["b"] = b
+        return a + b
+
+    result = call_with_retry(_work, 2, b=3, retries=2, base_delay=0)
+    assert result == 5
+    assert captured == {"a": 2, "b": 3}
 
 
 # ---------------------------------------------------------------------------

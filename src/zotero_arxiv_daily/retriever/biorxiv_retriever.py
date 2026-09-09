@@ -1,11 +1,11 @@
 from datetime import datetime
-from time import sleep
 from typing import Any
 
 import requests
 from loguru import logger
 
 from ..protocol import Paper
+from ..utils import call_with_retry
 from .base import BaseRetriever, register_retriever
 
 
@@ -20,19 +20,13 @@ class BiorxivRetriever(BaseRetriever):
 
     def _retrieve_raw_papers(self) -> list[dict[str, Any]]:
         api_url = f"https://api.biorxiv.org/details/{self.server}/2d"
-        retry_num = 10
-        delay_time = 10
-        for i in range(retry_num):
-            try:
-                response = requests.get(api_url)
-                response.raise_for_status()
-                break
-            except Exception as e:
-                if i == retry_num - 1:
-                    raise e
-                else:
-                    logger.warning(f"Failed to retrieve papers: {str(e)}. Retry in {delay_time} seconds.")
-                    sleep(delay_time)
+
+        def _fetch() -> requests.Response:
+            response = requests.get(api_url)
+            response.raise_for_status()
+            return response
+
+        response = call_with_retry(_fetch, retries=10, base_delay=10, what="fetch biorxiv papers")
         result = response.json()
         collection = result["collection"]
         if len(collection) == 0:
