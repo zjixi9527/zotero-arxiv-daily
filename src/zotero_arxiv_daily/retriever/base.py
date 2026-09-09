@@ -1,24 +1,26 @@
 from abc import ABC, abstractmethod
-from omegaconf import DictConfig
-from ..protocol import Paper, RawPaperItem
-from tqdm import tqdm
-from typing import Type
 from time import sleep
+
 from loguru import logger
+from omegaconf import DictConfig
+from tqdm import tqdm
+
+from ..protocol import Paper, RawPaperItem
 
 
 class BaseRetriever(ABC):
     name: str
-    def __init__(self, config:DictConfig):
+
+    def __init__(self, config: DictConfig):
         self.config = config
-        self.retriever_config = getattr(config.source,self.name)
+        self.retriever_config = getattr(config.source, self.name)
 
     @abstractmethod
     def _retrieve_raw_papers(self) -> list[RawPaperItem]:
         pass
 
     @abstractmethod
-    def convert_to_paper(self, raw_paper:RawPaperItem) -> Paper | None:
+    def convert_to_paper(self, raw_paper: RawPaperItem) -> Paper | None:
         pass
 
     def retrieve_papers(self) -> list[Paper]:
@@ -36,16 +38,20 @@ class BaseRetriever(ABC):
             sleep(1)
         return papers
 
+
 registered_retrievers = {}
 
-def register_retriever(name:str):
+
+def register_retriever(name: str):
     def decorator(cls):
         registered_retrievers[name] = cls
         cls.name = name
         return cls
+
     return decorator
 
-def get_retriever_cls(name:str) -> Type[BaseRetriever]:
+
+def get_retriever_cls(name: str) -> type[BaseRetriever]:
     if name not in registered_retrievers:
         raise ValueError(f"Retriever {name} not found")
     return registered_retrievers[name]

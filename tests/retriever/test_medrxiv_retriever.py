@@ -16,12 +16,14 @@ def test_medrxiv_pdf_url(config):
     with open_dict(config.source):
         config.source.medrxiv = {"category": ["neurology"]}
     retriever = MedrxivRetriever(config)
-    paper = retriever.convert_to_paper({
-        "doi": "10.1101/2026.03.01.999",
-        "title": "A medrxiv paper",
-        "authors": "Smith, J.",
-        "abstract": "Abstract.",
-        "version": "1",
-    })
+    paper = retriever.convert_to_paper(
+        {
+            "doi": "10.1101/2026.03.01.999",
+            "title": "A medrxiv paper",
+            "authors": "Smith, J.",
+            "abstract": "Abstract.",
+            "version": "1",
+        }
+    )
     assert "medrxiv.org" in paper.pdf_url
     assert paper.source == "medrxiv"

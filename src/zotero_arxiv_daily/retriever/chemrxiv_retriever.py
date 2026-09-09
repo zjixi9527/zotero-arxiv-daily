@@ -1,14 +1,14 @@
 import html
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from time import sleep
 from typing import Any
 
 import requests
 from loguru import logger
 
-from .base import BaseRetriever, register_retriever
 from ..protocol import Paper
+from .base import BaseRetriever, register_retriever
 
 
 @register_retriever("chemrxiv")
@@ -68,7 +68,7 @@ class ChemrxivRetriever(BaseRetriever):
         except ValueError:
             return None
         if parsed.tzinfo is None:
-            parsed = parsed.replace(tzinfo=timezone.utc)
+            parsed = parsed.replace(tzinfo=UTC)
         return parsed
 
     def _is_new_version(self, doi: str) -> bool:
@@ -76,7 +76,7 @@ class ChemrxivRetriever(BaseRetriever):
         return match is not None and int(match.group(1)) > 1
 
     def _retrieve_raw_papers(self) -> list[dict[str, Any]]:
-        cutoff = datetime.now(timezone.utc) - timedelta(hours=self.lookback_hours)
+        cutoff = datetime.now(UTC) - timedelta(hours=self.lookback_hours)
         include_new_versions = bool(getattr(self.retriever_config, "include_new_versions", False))
 
         collection = []

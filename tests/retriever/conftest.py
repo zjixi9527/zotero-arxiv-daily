@@ -31,8 +31,9 @@ def mock_feedparser(monkeypatch):
 @pytest.fixture()
 def mock_biorxiv_api(monkeypatch):
     """Patch requests.get to return the canned bioRxiv API response."""
-    import requests
     from types import SimpleNamespace
+
+    import requests
 
     from tests.canned_responses import SAMPLE_BIORXIV_API_RESPONSE
 

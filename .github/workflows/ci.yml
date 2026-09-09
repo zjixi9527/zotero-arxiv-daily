@@ -22,3 +22,20 @@ jobs:
       - name: Run Pytest
         run: |
           uv run pytest -m "" --cov=src/zotero_arxiv_daily --cov-report=term-missing
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v7.1.4
+
+      - name: Run Ruff check
+        run: |
+          uvx ruff@latest check .
+
+      - name: Run Ruff format check
+        run: |
+          uvx ruff@latest format --check .

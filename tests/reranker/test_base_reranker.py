@@ -3,8 +3,8 @@
 import numpy as np
 import pytest
 
+from tests.canned_responses import make_sample_corpus, make_sample_paper
 from zotero_arxiv_daily.reranker.base import BaseReranker, get_reranker_cls
-from tests.canned_responses import make_sample_paper, make_sample_corpus
 
 
 class StubReranker(BaseReranker):
@@ -23,10 +23,12 @@ def test_rerank_scores_and_sorts():
     papers = [make_sample_paper(title=f"Paper {i}") for i in range(2)]
 
     # Paper 1 has higher similarity to all corpus papers
-    sim = np.array([
-        [0.1, 0.1, 0.1],  # paper 0 — low
-        [0.9, 0.9, 0.9],  # paper 1 — high
-    ])
+    sim = np.array(
+        [
+            [0.1, 0.1, 0.1],  # paper 0 — low
+            [0.9, 0.9, 0.9],  # paper 1 — high
+        ]
+    )
     reranker = StubReranker(sim)
     ranked = reranker.rerank(papers, corpus)
     assert ranked[0].title == "Paper 1"

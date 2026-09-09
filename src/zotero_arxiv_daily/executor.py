@@ -31,16 +31,12 @@ def normalize_path_patterns(
         )
 
     if any(not isinstance(pattern, str) for pattern in patterns):
-        raise TypeError(
-            f"config.zotero.{config_key} must contain only "
-            f"glob pattern strings."
-        )
+        raise TypeError(f"config.zotero.{config_key} must contain only glob pattern strings.")
 
     return list(patterns)
 
 
 class Executor:
-
     def __init__(self, config: DictConfig):
         self.config = config
 
@@ -54,14 +50,9 @@ class Executor:
             "ignore_path",
         )
 
-        self.retrievers = {
-            source: get_retriever_cls(source)(config)
-            for source in config.executor.source
-        }
+        self.retrievers = {source: get_retriever_cls(source)(config) for source in config.executor.source}
 
-        self.reranker = get_reranker_cls(
-            config.executor.reranker
-        )(config)
+        self.reranker = get_reranker_cls(config.executor.reranker)(config)
 
         self.openai_client = OpenAI(
             api_key=config.llm.api.key,
@@ -77,56 +68,28 @@ class Executor:
             self.config.zotero.api_key,
         )
 
-        collections = zot.everything(
-            zot.collections()
-        )
+        collections = zot.everything(zot.collections())
 
-        collections = {
-            c["key"]: c
-            for c in collections
-        }
+        collections = {c["key"]: c for c in collections}
 
-        corpus = zot.everything(
-            zot.items(
-                itemType=(
-                    "conferencePaper || "
-                    "journalArticle || "
-                    "preprint"
-                )
-            )
-        )
+        corpus = zot.everything(zot.items(itemType=("conferencePaper || journalArticle || preprint")))
 
-        corpus = [
-            c
-            for c in corpus
-            if c["data"]["abstractNote"] != ""
-        ]
+        corpus = [c for c in corpus if c["data"]["abstractNote"] != ""]
 
         def get_collection_path(col_key: str) -> str:
-            parent = collections[col_key]["data"][
-                "parentCollection"
-            ]
+            parent = collections[col_key]["data"]["parentCollection"]
 
             if parent:
-                return (
-                    get_collection_path(parent)
-                    + "/"
-                    + collections[col_key]["data"]["name"]
-                )
+                return get_collection_path(parent) + "/" + collections[col_key]["data"]["name"]
 
             return collections[col_key]["data"]["name"]
 
         for c in corpus:
-            paths = [
-                get_collection_path(col)
-                for col in c["data"]["collections"]
-            ]
+            paths = [get_collection_path(col) for col in c["data"]["collections"]]
 
             c["paths"] = paths
 
-        logger.info(
-            f"Fetched {len(corpus)} zotero papers"
-        )
+        logger.info(f"Fetched {len(corpus)} zotero papers")
 
         return [
             CorpusPaper(
@@ -147,62 +110,32 @@ class Executor:
     ) -> list[CorpusPaper]:
 
         if self.include_path_patterns:
-            logger.info(
-                "Selecting zotero papers matching "
-                f"include_path: "
-                f"{self.include_path_patterns}"
-            )
+            logger.info(f"Selecting zotero papers matching include_path: {self.include_path_patterns}")
 
             corpus = [
                 c
                 for c in corpus
-                if any(
-                    glob_match(path, pattern)
-                    for path in c.paths
-                    for pattern in self.include_path_patterns
-                )
+                if any(glob_match(path, pattern) for path in c.paths for pattern in self.include_path_patterns)
             ]
 
         if self.ignore_path_patterns:
-            logger.info(
-                "Excluding zotero papers matching "
-                f"ignore_path: "
-                f"{self.ignore_path_patterns}"
-            )
+            logger.info(f"Excluding zotero papers matching ignore_path: {self.ignore_path_patterns}")
 
             corpus = [
                 c
                 for c in corpus
-                if not any(
-                    glob_match(path, pattern)
-                    for path in c.paths
-                    for pattern in self.ignore_path_patterns
-                )
+                if not any(glob_match(path, pattern) for path in c.paths for pattern in self.ignore_path_patterns)
             ]
 
-        if (
-            self.include_path_patterns
-            or self.ignore_path_patterns
-        ):
+        if self.include_path_patterns or self.ignore_path_patterns:
             samples = random.sample(
                 corpus,
                 min(5, len(corpus)),
             )
 
-            samples = "\n".join(
-                [
-                    c.title
-                    + " - "
-                    + "\n".join(c.paths)
-                    for c in samples
-                ]
-            )
+            samples = "\n".join([c.title + " - " + "\n".join(c.paths) for c in samples])
 
-            logger.info(
-                f"Selected {len(corpus)} "
-                f"zotero papers:\n"
-                f"{samples}\n..."
-            )
+            logger.info(f"Selected {len(corpus)} zotero papers:\n{samples}\n...")
 
         return corpus
 
@@ -211,19 +144,13 @@ class Executor:
         corpus = self.filter_corpus(corpus)
 
         if len(corpus) == 0:
-            logger.error(
-                "No zotero papers found. "
-                "Please check your zotero settings:\n"
-                f"{self.config.zotero}"
-            )
+            logger.error(f"No zotero papers found. Please check your zotero settings:\n{self.config.zotero}")
             return
 
         all_papers = []
 
         for source, retriever in self.retrievers.items():
-            logger.info(
-                f"Retrieving {source} papers..."
-            )
+            logger.info(f"Retrieving {source} papers...")
 
             # OpenAlex uses the Zotero corpus
             # to construct the semantic search profile.
@@ -233,22 +160,14 @@ class Executor:
             papers = retriever.retrieve_papers()
 
             if len(papers) == 0:
-                logger.info(
-                    f"No {source} papers found"
-                )
+                logger.info(f"No {source} papers found")
                 continue
 
-            logger.info(
-                f"Retrieved {len(papers)} "
-                f"{source} papers"
-            )
+            logger.info(f"Retrieved {len(papers)} {source} papers")
 
             all_papers.extend(papers)
 
-        logger.info(
-            f"Total {len(all_papers)} papers "
-            f"retrieved from all sources"
-        )
+        logger.info(f"Total {len(all_papers)} papers retrieved from all sources")
 
         reranked_papers = []
 
@@ -260,13 +179,9 @@ class Executor:
                 corpus,
             )
 
-            reranked_papers = reranked_papers[
-                : self.config.executor.max_paper_num
-            ]
+            reranked_papers = reranked_papers[: self.config.executor.max_paper_num]
 
-            logger.info(
-                "Generating TLDR and affiliations..."
-            )
+            logger.info("Generating TLDR and affiliations...")
 
             for paper in tqdm(reranked_papers):
                 paper.generate_tldr(
@@ -280,23 +195,16 @@ class Executor:
                 )
 
         elif not self.config.executor.send_empty:
-            logger.info(
-                "No new papers found. "
-                "No email will be sent."
-            )
+            logger.info("No new papers found. No email will be sent.")
             return
 
         logger.info("Sending email...")
 
-        email_content = render_email(
-            reranked_papers
-        )
+        email_content = render_email(reranked_papers)
 
         send_email(
             self.config,
             email_content,
         )
 
-        logger.info(
-            "Email sent successfully"
-        )
+        logger.info("Email sent successfully")

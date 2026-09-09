@@ -3,8 +3,8 @@
 import pytest
 from omegaconf import open_dict
 
-from zotero_arxiv_daily.retriever.biorxiv_retriever import BiorxivRetriever
 from tests.canned_responses import SAMPLE_BIORXIV_API_RESPONSE
+from zotero_arxiv_daily.retriever.biorxiv_retriever import BiorxivRetriever
 
 
 def test_biorxiv_retrieve(config, mock_biorxiv_api, monkeypatch):
@@ -19,8 +19,9 @@ def test_biorxiv_retrieve(config, mock_biorxiv_api, monkeypatch):
 
 
 def test_biorxiv_empty_response(config, monkeypatch):
-    import requests
     from types import SimpleNamespace
+
+    import requests
 
     empty = {"messages": [{"status": "ok"}], "collection": []}
 
@@ -40,8 +41,9 @@ def test_biorxiv_empty_response(config, monkeypatch):
 
 
 def test_biorxiv_orders_unpadded_dates_chronologically(config, monkeypatch):
-    import requests
     from types import SimpleNamespace
+
+    import requests
 
     response = {
         "messages": [{"status": "ok"}],

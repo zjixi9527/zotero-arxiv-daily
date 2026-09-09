@@ -131,11 +131,7 @@ def test_affiliations_malformed_llm_output(llm_params):
             ]
         )
 
-    client = SimpleNamespace(
-        chat=SimpleNamespace(
-            completions=SimpleNamespace(create=create_no_brackets)
-        )
-    )
+    client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create_no_brackets)))
     paper = make_sample_paper()
     result = paper.generate_affiliations(client, llm_params)
     # re.search for [...] will fail -> AttributeError -> caught -> returns None

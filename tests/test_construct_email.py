@@ -1,7 +1,7 @@
 """Tests for zotero_arxiv_daily.construct_email: render_email, get_stars, get_block_html."""
 
-from zotero_arxiv_daily.construct_email import render_email, get_stars, get_block_html, get_empty_html
 from tests.canned_responses import make_sample_paper
+from zotero_arxiv_daily.construct_email import get_block_html, get_empty_html, get_stars, render_email
 
 
 def test_render_email_with_papers():
@@ -76,3 +76,64 @@ def test_get_block_html_contains_all_fields():
 def test_get_empty_html():
     html = get_empty_html()
     assert "No Papers Today" in html
+
+
+# ---------------------------------------------------------------------------
+# Q3: HTML-escaping security tests
+# ---------------------------------------------------------------------------
+
+
+def test_render_email_title_with_braces_does_not_crash():
+    """A LaTeX/math-heavy title containing { } must not raise KeyError."""
+    paper = make_sample_paper(title="Attention {Is All} You Need $x^{2}$", score=7.0, tldr="ok")
+    html = render_email([paper])
+    assert "Attention" in html
+    assert "All" in html
+
+
+def test_render_email_escapes_html_in_title():
+    paper = make_sample_paper(title="<script>alert('xss')</script>", score=7.0, tldr="ok")
+    html = render_email([paper])
+    # Raw tag must not appear verbatim; escaped form must.
+    assert "<script>" not in html
+    assert "&lt;script&gt;" in html
+
+
+def test_render_email_escapes_html_in_affiliations():
+    paper = make_sample_paper(
+        affiliations=["<b>MIT</b>", '"><img src=x onerror=alert(1)>'],
+        score=7.0,
+        tldr="ok",
+    )
+    html = render_email([paper])
+    assert "<b>MIT</b>" not in html
+    assert "&lt;b&gt;MIT&lt;/b&gt;" in html
+
+
+def test_render_email_escapes_quotes_in_pdf_url_href():
+    """pdf_url is embedded in an attribute (href=...), so quotes must be escaped."""
+    paper = make_sample_paper(
+        pdf_url='https://arxiv.org/pdf/2026.00001" onmouseover="alert(1)',
+        score=7.0,
+        tldr="ok",
+    )
+    html = render_email([paper])
+    assert 'href="https://arxiv.org/pdf/2026.00001"' in html or 'href="https:&#x2F;&#x2F;arxiv.org' in html
+    # The injected attribute must not survive.
+    assert 'onmouseover="alert(1)' not in html
+
+
+def test_get_block_html_escapes_all_external_fields():
+    html = get_block_html(
+        "<Title>",
+        "Auth<br>or",
+        "3.5",
+        "<Summary>",
+        'http://pdf.url?a=1&b=2"',
+        "<MIT>",
+    )
+    assert "<Title>" not in html
+    assert "&lt;Title&gt;" in html
+    assert "Auth&lt;br&gt;or" in html
+    assert "&lt;Summary&gt;" in html
+    assert "&lt;MIT&gt;" in html

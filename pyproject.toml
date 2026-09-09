@@ -5,7 +5,7 @@ build-backend = "uv_build"
 [project]
 name = "zotero-arxiv-daily"
 version = "1.0.0"
-description = "Add your description here"
+description = "A zero-cost GitHub Actions workflow that emails you daily paper recommendations (arXiv/bioRxiv/medRxiv/chemRxiv) ranked by similarity to your Zotero library"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
@@ -16,16 +16,22 @@ dependencies = [
     "aiosmtpd>=1.4.6",
     "loguru>=0.7.3",
     "pyzotero>=1.10.0",
-    "scikit-learn>=1.7.1",
-    "sentence-transformers>=5.2.3",
-    "torch",
     "openai>=2.24.0",
     "arxiv>=2.4.0",
     "pymupdf4llm>=0.3.4",
     "pymupdf-layout>=1.27.1",
     "dotenv>=0.9.9",
-    "peft>=0.18.1",
     "trafilatura>=2.0.0",
+]
+
+[project.optional-dependencies]
+# Heavy local-ML stack, only needed when using the `local` reranker.
+# Install with:  uv sync --extra local
+local = [
+    "scikit-learn>=1.7.1",
+    "sentence-transformers>=5.2.3",
+    "torch",
+    "peft>=0.18.1",
 ]
 
 [tool.uv.sources]
@@ -45,9 +51,31 @@ filterwarnings = [
     "ignore::DeprecationWarning:multiprocessing",
 ]
 
+[tool.ruff]
+line-length = 119
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = [
+    # E501 (line-too-long) is delegated to `ruff format`, which guarantees
+    # code width. Lingering E501 hits are almost always long *string literals*
+    # (HTML/CSS templates, LaTeX, URLs, test fixtures) that cannot be safely
+    # wrapped without changing their content, so they are allowed.
+    "E501",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"src/zotero_arxiv_daily/main.py" = ["E402"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
 [dependency-groups]
 dev = [
     "ipykernel>=7.1.0",
     "pytest>=8.4.1",
     "pytest-cov>=6.0",
+    "ruff>=0.9.0",
 ]

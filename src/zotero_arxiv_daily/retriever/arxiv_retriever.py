@@ -1,20 +1,21 @@
-from .base import BaseRetriever, register_retriever
-import arxiv
-from arxiv import Result as ArxivResult
-from ..protocol import Paper
-from ..utils import extract_markdown_from_pdf, extract_tex_code_from_tar
-from tempfile import TemporaryDirectory
-import feedparser
-from tqdm import tqdm
 import multiprocessing
 import os
+from collections.abc import Callable
 from queue import Empty
+from tempfile import TemporaryDirectory
 from time import sleep
-from typing import Any, Callable, TypeVar
-from loguru import logger
-import requests
+from typing import Any
 
-T = TypeVar("T")
+import arxiv
+import feedparser
+import requests
+from arxiv import Result as ArxivResult
+from loguru import logger
+from tqdm import tqdm
+
+from ..protocol import Paper
+from ..utils import extract_markdown_from_pdf, extract_tex_code_from_tar
+from .base import BaseRetriever, register_retriever
 
 DOWNLOAD_TIMEOUT = (10, 60)
 PDF_EXTRACT_TIMEOUT = 180
@@ -30,7 +31,7 @@ def _download_file(url: str, path: str) -> None:
                     file.write(chunk)
 
 
-def _run_in_subprocess(
+def _run_in_subprocess[T](
     result_queue: Any,
     func: Callable[..., T | None],
     args: tuple[Any, ...],
@@ -41,7 +42,7 @@ def _run_in_subprocess(
         result_queue.put(("error", f"{type(exc).__name__}: {exc}"))
 
 
-def _run_with_hard_timeout(
+def _run_with_hard_timeout[T](
     func: Callable[..., T | None],
     args: tuple[Any, ...],
     *,
@@ -115,11 +116,11 @@ class ArxivRetriever(BaseRetriever):
 
     def _retrieve_raw_papers(self) -> list[ArxivResult]:
         client = arxiv.Client(num_retries=10, delay_seconds=10)
-        query = '+'.join(self.config.source.arxiv.category)
+        query = "+".join(self.config.source.arxiv.category)
         include_cross_list = self.config.source.arxiv.get("include_cross_list", False)
         # Get the latest paper from arxiv rss feed
         feed = feedparser.parse(f"https://rss.arxiv.org/atom/{query}")
-        if 'Feed error for query' in feed.feed.title:
+        if "Feed error for query" in feed.feed.title:
             raise Exception(f"Invalid ARXIV_QUERY: {query}.")
         raw_papers = []
         allowed_announce_types = {"new", "cross"} if include_cross_list else {"new"}
@@ -136,7 +137,7 @@ class ArxivRetriever(BaseRetriever):
         max_batch_retries = 5
         batch_retry_delay = 30
         for i in range(0, len(all_paper_ids), 20):
-            search = arxiv.Search(id_list=all_paper_ids[i:i + 20])
+            search = arxiv.Search(id_list=all_paper_ids[i : i + 20])
             for attempt in range(max_batch_retries):
                 try:
                     batch = list(client.results(search))
@@ -146,7 +147,9 @@ class ArxivRetriever(BaseRetriever):
                 except arxiv.HTTPError as exc:
                     if exc.status == 429 and attempt < max_batch_retries - 1:
                         wait = batch_retry_delay * (attempt + 1)
-                        logger.warning(f"arXiv API 429 on batch {i // 20}, retry {attempt + 1}/{max_batch_retries} in {wait}s")
+                        logger.warning(
+                            f"arXiv API 429 on batch {i // 20}, retry {attempt + 1}/{max_batch_retries} in {wait}s"
+                        )
                         sleep(wait)
                     else:
                         raise

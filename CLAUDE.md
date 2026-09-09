@@ -21,11 +21,17 @@ uv run pytest -m ""
 # Run a single test
 uv run pytest tests/test_utils.py::TestGlobMatch -v
 
-# Install/sync dependencies
+# Lint (must pass before CI)
+uv run ruff check .
+
+# Auto-format (integrates with `ruff format`)
+uv run ruff format .
+
+# Install/sync dependencies (add --extra local for the local reranker)
 uv sync
 ```
 
-No linter or formatter is configured.
+Linting and formatting are handled by **ruff** (configured in `pyproject.toml`): `ruff check .` and `ruff format .` are enforced in CI. The `local` reranker requires heavy ML deps; install them with `uv sync --extra local` when needed.
 
 ## Architecture
 

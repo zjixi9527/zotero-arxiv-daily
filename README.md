@@ -184,6 +184,16 @@ cd zotero-arxiv-daily
 uv run main.py
 ```
 
+> [!NOTE]
+> The default `local` reranker relies on a large ML dependency stack
+> (`sentence-transformers`, `torch`, `scikit-learn`, `peft`). These are declared as an
+> **optional extra** so that a plain `uv sync` stays light (fast CI and installs).
+> When you use the `local` reranker locally or in CI, install the heavy deps with:
+> ```bash
+> uv sync --extra local
+> ```
+> Alternatively, set `reranker: api` in your config to use an embedding API instead.
+
 ## 🚀 Sync with the latest version
 This project is in active development. You can subscribe this repo via `Watch` so that you can be notified once we publish new release.
 

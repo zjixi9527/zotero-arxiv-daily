@@ -1,14 +1,12 @@
 """Tests for BaseRetriever: error handling, serial execution, registration."""
 
 import io
-from types import SimpleNamespace
 from urllib.error import HTTPError
 
 from omegaconf import open_dict
 
-from zotero_arxiv_daily.retriever.base import BaseRetriever, register_retriever, get_retriever_cls
 from zotero_arxiv_daily.protocol import Paper
-
+from zotero_arxiv_daily.retriever.base import BaseRetriever, get_retriever_cls, register_retriever
 
 # ---------------------------------------------------------------------------
 # Test retrievers — migrated from test_arxiv_retriever.py
@@ -111,6 +109,7 @@ def test_retrieve_papers_empty_raw(config, monkeypatch):
     class EmptyRetriever(BaseRetriever):
         def _retrieve_raw_papers(self):
             return []
+
         def convert_to_paper(self, raw_paper):
             return None
 
@@ -123,5 +122,6 @@ def test_retrieve_papers_empty_raw(config, monkeypatch):
 
 def test_get_retriever_cls_unknown():
     import pytest
+
     with pytest.raises(ValueError, match="not found"):
         get_retriever_cls("nonexistent_retriever_xyz")

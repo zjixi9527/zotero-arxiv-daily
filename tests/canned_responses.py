@@ -5,7 +5,6 @@ from types import SimpleNamespace
 
 from zotero_arxiv_daily.protocol import CorpusPaper, Paper
 
-
 # ---------------------------------------------------------------------------
 # OpenAI client stub
 # ---------------------------------------------------------------------------
@@ -242,6 +241,7 @@ SAMPLE_BIORXIV_API_RESPONSE = {
 # chemRxiv canned API response (Crossref REST API, prefix 10.26434)
 # ---------------------------------------------------------------------------
 
+
 def _chemrxiv_item(doi, title, created, authors, abstract="<jats:p>An abstract.</jats:p>"):
     """Build a Crossref ``posted-content`` work record for a chemRxiv preprint.
 
@@ -258,8 +258,12 @@ def _chemrxiv_item(doi, title, created, authors, abstract="<jats:p>An abstract.<
         "created": {"date-time": created, "timestamp": 0},
         "posted": {"date-parts": [[int(p) for p in created[:10].split("-")]]},
         "author": [
-            {"given": given, "family": family, "sequence": "first" if i == 0 else "additional",
-             "affiliation": [{"name": "Some University"}]}
+            {
+                "given": given,
+                "family": family,
+                "sequence": "first" if i == 0 else "additional",
+                "affiliation": [{"name": "Some University"}],
+            }
             for i, (given, family) in enumerate(authors)
         ],
         "link": [{"URL": f"https://chemrxiv.org/doi/pdf/{doi}", "content-type": "unspecified"}],
@@ -281,30 +285,32 @@ def _chemrxiv_response(items, total=None):
     }
 
 
-SAMPLE_CHEMRXIV_API_RESPONSE = _chemrxiv_response([
-    _chemrxiv_item(
-        "10.26434/chemrxiv.15007618/v1",
-        "A chemrxiv paper",
-        "2026-03-02T10:00:00Z",
-        [("Jane", "Smith"), ("Alan", "Doe")],
-        abstract="<jats:p>We study RuO<jats:sub>2</jats:sub> &amp; friends.</jats:p>",
-    ),
-    _chemrxiv_item(
-        "10.26434/chemrxiv.15007000/v2",
-        "A revised chemrxiv paper",
-        "2026-03-02T09:00:00Z",
-        [("Li", "Wang")],
-    ),
-    _chemrxiv_item(
-        "10.26434/chemrxiv.15007619/v1",
-        "Another chemrxiv paper",
-        "2026-03-02T08:00:00Z",
-        [("Rip", "Old")],
-    ),
-    _chemrxiv_item(
-        "10.26434/chemrxiv.15006000/v1",
-        "Old chemrxiv paper",
-        "2026-02-20T08:00:00Z",
-        [("Rip", "Old")],
-    ),
-])
+SAMPLE_CHEMRXIV_API_RESPONSE = _chemrxiv_response(
+    [
+        _chemrxiv_item(
+            "10.26434/chemrxiv.15007618/v1",
+            "A chemrxiv paper",
+            "2026-03-02T10:00:00Z",
+            [("Jane", "Smith"), ("Alan", "Doe")],
+            abstract="<jats:p>We study RuO<jats:sub>2</jats:sub> &amp; friends.</jats:p>",
+        ),
+        _chemrxiv_item(
+            "10.26434/chemrxiv.15007000/v2",
+            "A revised chemrxiv paper",
+            "2026-03-02T09:00:00Z",
+            [("Li", "Wang")],
+        ),
+        _chemrxiv_item(
+            "10.26434/chemrxiv.15007619/v1",
+            "Another chemrxiv paper",
+            "2026-03-02T08:00:00Z",
+            [("Rip", "Old")],
+        ),
+        _chemrxiv_item(
+            "10.26434/chemrxiv.15006000/v1",
+            "Old chemrxiv paper",
+            "2026-02-20T08:00:00Z",
+            [("Rip", "Old")],
+        ),
+    ]
+)

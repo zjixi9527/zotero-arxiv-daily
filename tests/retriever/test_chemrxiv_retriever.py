@@ -1,22 +1,21 @@
 """Tests for ChemrxivRetriever (Crossref-backed)."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 import pytest
 import requests
 from omegaconf import open_dict
 
-from zotero_arxiv_daily.retriever import get_retriever_cls
-from zotero_arxiv_daily.retriever.chemrxiv_retriever import ChemrxivRetriever
 from tests.canned_responses import (
     SAMPLE_CHEMRXIV_API_RESPONSE,
     _chemrxiv_item,
     _chemrxiv_response,
 )
+from zotero_arxiv_daily.retriever import get_retriever_cls
+from zotero_arxiv_daily.retriever.chemrxiv_retriever import ChemrxivRetriever
 
-
-FIXED_NOW = datetime(2026, 3, 2, 12, 0, 0, tzinfo=timezone.utc)
+FIXED_NOW = datetime(2026, 3, 2, 12, 0, 0, tzinfo=UTC)
 
 
 class _FixedDatetime(datetime):

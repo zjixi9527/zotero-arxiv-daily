@@ -35,4 +35,6 @@ jobs:
           printf "%b\n" "$CUSTOM_CONFIG" > config/custom.yaml
           echo "Use custom config:"
           cat config/custom.yaml
+          # The default/local reranker needs the heavy ML stack (extra `local`).
+          uv sync --extra local
           uv run src/zotero_arxiv_daily/main.py
