@@ -77,8 +77,7 @@ class NoneRetriever(BaseRetriever):
 # ---------------------------------------------------------------------------
 
 
-def test_retrieve_papers_skips_conversion_errors(config, monkeypatch):
-    monkeypatch.setattr("zotero_arxiv_daily.retriever.base.sleep", lambda _: None)
+def test_retrieve_papers_skips_conversion_errors(config):
     with open_dict(config.source):
         config.source.failing_test = {}
     retriever = FailingTestRetriever(config)
@@ -86,8 +85,7 @@ def test_retrieve_papers_skips_conversion_errors(config, monkeypatch):
     assert [p.title for p in papers] == ["good paper"]
 
 
-def test_retrieve_papers_runs_serially(config, monkeypatch):
-    monkeypatch.setattr("zotero_arxiv_daily.retriever.base.sleep", lambda _: None)
+def test_retrieve_papers_runs_serially(config):
     with open_dict(config.source):
         config.source.serial_test = {}
     seen: list[str] = []
@@ -112,9 +110,8 @@ class ParallelTestRetriever(BaseRetriever):
         )
 
 
-def test_retrieve_papers_concurrency_safe_runs_in_parallel(config, monkeypatch):
+def test_retrieve_papers_concurrency_safe_runs_in_parallel(config):
     """A concurrency-safe retriever converts all papers (order is not guaranteed)."""
-    monkeypatch.setattr("zotero_arxiv_daily.retriever.base.sleep", lambda _: None)
     with open_dict(config.source):
         config.source.parallel_test = {}
     retriever = ParallelTestRetriever(config)
@@ -122,8 +119,7 @@ def test_retrieve_papers_concurrency_safe_runs_in_parallel(config, monkeypatch):
     assert {p.title for p in papers} == {f"parallel paper {i}" for i in range(12)}
 
 
-def test_retrieve_papers_skips_none_results(config, monkeypatch):
-    monkeypatch.setattr("zotero_arxiv_daily.retriever.base.sleep", lambda _: None)
+def test_retrieve_papers_skips_none_results(config):
     with open_dict(config.source):
         config.source.none_test = {}
     retriever = NoneRetriever(config)
@@ -131,9 +127,7 @@ def test_retrieve_papers_skips_none_results(config, monkeypatch):
     assert papers == []
 
 
-def test_retrieve_papers_empty_raw(config, monkeypatch):
-    monkeypatch.setattr("zotero_arxiv_daily.retriever.base.sleep", lambda _: None)
-
+def test_retrieve_papers_empty_raw(config):
     @register_retriever("empty_test")
     class EmptyRetriever(BaseRetriever):
         def _retrieve_raw_papers(self):

@@ -211,9 +211,10 @@ def test_validate_config_rejects_unknown_source(config, monkeypatch):
         _validator_for(config)._validate_config()
 
 
-def test_validate_config_warns_but_does_not_fail_on_unresolvable_smtp(config, monkeypatch, caplog):
+def test_validate_config_warns_but_does_not_fail_on_unresolvable_smtp(config, monkeypatch):
     import socket
 
+    from loguru import logger
     from omegaconf import open_dict
 
     with open_dict(config):
@@ -223,9 +224,19 @@ def test_validate_config_warns_but_does_not_fail_on_unresolvable_smtp(config, mo
         raise OSError(f"cannot resolve {host}")
 
     monkeypatch.setattr(socket, "gethostbyname", _boom)
-    with caplog.at_level("WARNING"):
+
+    # Production code logs through loguru.  ``caplog`` only intercepts the
+    # stdlib ``logging`` module, so loguru records never reach it; attach a
+    # temporary loguru sink instead (and remove it again afterwards).
+    messages: list[str] = []
+    handler_id = logger.add(lambda message: messages.append(str(message)))
+
+    try:
         _validator_for(config)._validate_config()  # should not raise
-    assert any("smtp.unresolvable.invalid" in record.message for record in caplog.records)
+    finally:
+        logger.remove(handler_id)
+
+    assert any("smtp.unresolvable.invalid" in message for message in messages)
 
 
 # ---------------------------------------------------------------------------
@@ -279,10 +290,7 @@ def test_run_end_to_end(config, monkeypatch):
     sent = []
     monkeypatch.setattr(smtplib, "SMTP", make_stub_smtp(sent))
 
-    # 5. Stub sleep (reranker/retriever)
-    monkeypatch.setattr("zotero_arxiv_daily.retriever.base.sleep", lambda _: None)
-
-    # 6. Run
+    # 5. Run
     executor = Executor(config)
     executor.run()
 
@@ -319,7 +327,6 @@ def test_run_no_papers_send_empty_false(config, monkeypatch):
 
     sent = []
     monkeypatch.setattr(smtplib, "SMTP", make_stub_smtp(sent))
-    monkeypatch.setattr("zotero_arxiv_daily.retriever.base.sleep", lambda _: None)
 
     executor = Executor(config)
     executor.run()
@@ -354,7 +361,6 @@ def test_run_no_papers_send_empty_true(config, monkeypatch):
 
     sent = []
     monkeypatch.setattr(smtplib, "SMTP", make_stub_smtp(sent))
-    monkeypatch.setattr("zotero_arxiv_daily.retriever.base.sleep", lambda _: None)
 
     executor = Executor(config)
     executor.run()

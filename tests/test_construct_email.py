@@ -118,9 +118,16 @@ def test_render_email_escapes_quotes_in_pdf_url_href():
         tldr="ok",
     )
     html = render_email([paper])
-    assert 'href="https://arxiv.org/pdf/2026.00001"' in html or 'href="https:&#x2F;&#x2F;arxiv.org' in html
-    # The injected attribute must not survive.
+    # ``html.escape(..., quote=True)`` rewrites the dangerous double quotes as
+    # ``&quot;`` entities, so the href attribute stays well-formed and the
+    # injected attribute name is rendered as inert *text*, not new markup.
+    assert 'href="https://arxiv.org/pdf/2026.00001&quot;' in html
+    assert "&quot; onmouseover=&quot;alert(1)" in html
+    # The raw, executable form must not survive anywhere in the document: a
+    # literal quote followed by ``onmouseover=`` would mean the attribute
+    # escaped its href context.
     assert 'onmouseover="alert(1)' not in html
+    assert '" onmouseover=' not in html
 
 
 def test_get_block_html_escapes_all_external_fields():

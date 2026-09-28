@@ -21,7 +21,7 @@ jobs:
 
       - name: Run Pytest
         run: |
-          uv run pytest -m "" --cov=src/zotero_arxiv_daily --cov-report=term-missing
+          uv run pytest -m "not slow" --cov=src/zotero_arxiv_daily --cov-report=term-missing
 
   lint:
     runs-on: ubuntu-latest

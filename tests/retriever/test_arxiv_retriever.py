@@ -16,9 +16,18 @@ def _raise_runtime_error() -> None:
     raise RuntimeError("boom")
 
 
-def test_arxiv_retriever(config, mock_feedparser, monkeypatch):
-    monkeypatch.setattr("zotero_arxiv_daily.retriever.base.sleep", lambda _: None)
+# ``_run_with_hard_timeout`` runs its callable in a fresh ``multiprocessing``
+# process.  Where the ``fork`` start method is unavailable (Windows, and macOS
+# with Python >= 3.8) the child must re-execute the interpreter and re-import
+# the project's native dependencies before it can run anything, which costs
+# several seconds even for a trivial callable.  Tests that exercise the *happy*
+# path therefore use a budget well above that startup cost, so they assert
+# behaviour rather than process-startup latency.  The timeout branch keeps a
+# deliberately tiny budget, which is precise on every platform.
+_STARTUP_SAFE_TIMEOUT = 30
 
+
+def test_arxiv_retriever(config, mock_feedparser, monkeypatch):
     # The RSS fixture gives us paper IDs.  After feedparser, the code calls
     # arxiv.Client().results(search) which makes real HTTP requests.  We mock
     # the arxiv Client so the test stays offline.
@@ -62,7 +71,11 @@ def test_arxiv_retriever(config, mock_feedparser, monkeypatch):
 
 def test_run_with_hard_timeout_returns_value():
     result = _run_with_hard_timeout(
-        _sleep_and_return, ("done", 0.01), timeout=1, operation="test op", paper_title="paper"
+        _sleep_and_return,
+        ("done", 0.01),
+        timeout=_STARTUP_SAFE_TIMEOUT,
+        operation="test op",
+        paper_title="paper",
     )
     assert result == "done"
 
@@ -80,6 +93,12 @@ def test_run_with_hard_timeout_returns_none_on_timeout(monkeypatch):
 def test_run_with_hard_timeout_returns_none_on_failure(monkeypatch):
     warnings: list[str] = []
     monkeypatch.setattr(arxiv_retriever, "logger", SimpleNamespace(warning=warnings.append))
-    result = _run_with_hard_timeout(_raise_runtime_error, (), timeout=1, operation="test op", paper_title="paper")
+    result = _run_with_hard_timeout(
+        _raise_runtime_error,
+        (),
+        timeout=_STARTUP_SAFE_TIMEOUT,
+        operation="test op",
+        paper_title="paper",
+    )
     assert result is None
     assert "boom" in warnings[0]

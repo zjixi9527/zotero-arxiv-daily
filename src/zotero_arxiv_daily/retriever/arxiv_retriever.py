@@ -51,9 +51,7 @@ def _run_with_hard_timeout[T](
     paper_title: str,
 ) -> T | None:
     start_methods = multiprocessing.get_all_start_methods()
-    context = multiprocessing.get_context(
-        "fork" if "fork" in start_methods else start_methods[0]
-    )
+    context = multiprocessing.get_context("fork" if "fork" in start_methods else start_methods[0])
 
     result_queue = context.Queue()
     process = context.Process(
@@ -72,10 +70,7 @@ def _run_with_hard_timeout[T](
         result_queue.close()
         result_queue.join_thread()
 
-        logger.warning(
-            f"{operation} timed out for {paper_title} "
-            f"after {timeout} seconds"
-        )
+        logger.warning(f"{operation} timed out for {paper_title} after {timeout} seconds")
         return None
 
     process.join(5)
@@ -85,9 +80,7 @@ def _run_with_hard_timeout[T](
     if status == "ok":
         return payload
 
-    logger.warning(
-        f"{operation} failed for {paper_title}: {payload}"
-    )
+    logger.warning(f"{operation} failed for {paper_title}: {payload}")
     return None
 
 
@@ -104,9 +97,7 @@ def _extract_text_from_html_worker(html_url: str) -> str | None:
     downloaded = trafilatura.fetch_url(html_url)
 
     if downloaded is None:
-        raise ValueError(
-            f"Failed to download HTML from {html_url}"
-        )
+        raise ValueError(f"Failed to download HTML from {html_url}")
 
     text = trafilatura.extract(
         downloaded,
@@ -115,9 +106,7 @@ def _extract_text_from_html_worker(html_url: str) -> str | None:
     )
 
     if not text:
-        raise ValueError(
-            f"No text extracted from {html_url}"
-        )
+        raise ValueError(f"No text extracted from {html_url}")
 
     return text
 
@@ -154,9 +143,7 @@ class ArxivRetriever(BaseRetriever):
         super().__init__(config)
 
         if self.config.source.arxiv.category is None:
-            raise ValueError(
-                "category must be specified for arxiv."
-            )
+            raise ValueError("category must be specified for arxiv.")
 
     def _retrieve_raw_papers(self) -> list[ArxivResult]:
         """
@@ -177,15 +164,11 @@ class ArxivRetriever(BaseRetriever):
             delay_seconds=10,
         )
 
-        query = "+".join(
-            self.config.source.arxiv.category
-        )
+        query = "+".join(self.config.source.arxiv.category)
 
-        include_cross_list = (
-            self.config.source.arxiv.get(
-                "include_cross_list",
-                False,
-            )
+        include_cross_list = self.config.source.arxiv.get(
+            "include_cross_list",
+            False,
         )
 
         # --------------------------------------------------
@@ -193,9 +176,7 @@ class ArxivRetriever(BaseRetriever):
         # --------------------------------------------------
         feed_url = f"https://rss.arxiv.org/atom/{query}"
 
-        logger.info(
-            f"Fetching arXiv RSS feed: {feed_url}"
-        )
+        logger.info(f"Fetching arXiv RSS feed: {feed_url}")
 
         feed = feedparser.parse(feed_url)
 
@@ -206,20 +187,12 @@ class ArxivRetriever(BaseRetriever):
         )
 
         if "Feed error for query" in feed_title:
-            raise Exception(
-                f"Invalid ARXIV_QUERY: {query}."
-            )
+            raise Exception(f"Invalid ARXIV_QUERY: {query}.")
 
-        allowed_announce_types = (
-            {"new", "cross"}
-            if include_cross_list
-            else {"new"}
-        )
+        allowed_announce_types = {"new", "cross"} if include_cross_list else {"new"}
 
         all_paper_ids = [
-            entry.id.removeprefix(
-                "oai:arXiv.org:"
-            )
+            entry.id.removeprefix("oai:arXiv.org:")
             for entry in feed.entries
             if entry.get(
                 "arxiv_announce_type",
@@ -231,15 +204,10 @@ class ArxivRetriever(BaseRetriever):
         if self.config.executor.debug:
             all_paper_ids = all_paper_ids[:10]
 
-        logger.info(
-            f"Found {len(all_paper_ids)} "
-            "arXiv paper IDs from RSS"
-        )
+        logger.info(f"Found {len(all_paper_ids)} arXiv paper IDs from RSS")
 
         if not all_paper_ids:
-            logger.warning(
-                "No arXiv papers found from RSS feed."
-            )
+            logger.warning("No arXiv papers found from RSS feed.")
             return []
 
         # --------------------------------------------------
@@ -265,42 +233,24 @@ class ArxivRetriever(BaseRetriever):
             len(all_paper_ids),
             batch_size,
         ):
-            batch_ids = all_paper_ids[
-                i : i + batch_size
-            ]
+            batch_ids = all_paper_ids[i : i + batch_size]
 
-            batch_number = (
-                i // batch_size
-            ) + 1
+            batch_number = (i // batch_size) + 1
 
-            total_batches = (
-                len(all_paper_ids)
-                + batch_size
-                - 1
-            ) // batch_size
+            total_batches = (len(all_paper_ids) + batch_size - 1) // batch_size
 
-            logger.info(
-                f"Retrieving arXiv batch "
-                f"{batch_number}/{total_batches} "
-                f"({len(batch_ids)} papers)"
-            )
+            logger.info(f"Retrieving arXiv batch {batch_number}/{total_batches} ({len(batch_ids)} papers)")
 
-            search = arxiv.Search(
-                id_list=batch_ids
-            )
+            search = arxiv.Search(id_list=batch_ids)
 
             batch_completed = False
 
             # ----------------------------------------------
             # Try normal batch request
             # ----------------------------------------------
-            for attempt in range(
-                max_batch_retries
-            ):
+            for attempt in range(max_batch_retries):
                 try:
-                    batch = list(
-                        client.results(search)
-                    )
+                    batch = list(client.results(search))
 
                     raw_papers.extend(batch)
 
@@ -308,12 +258,7 @@ class ArxivRetriever(BaseRetriever):
                     # not returned results.
                     bar.update(len(batch_ids))
 
-                    logger.info(
-                        f"arXiv batch "
-                        f"{batch_number} succeeded: "
-                        f"{len(batch)}/"
-                        f"{len(batch_ids)} papers returned"
-                    )
+                    logger.info(f"arXiv batch {batch_number} succeeded: {len(batch)}/{len(batch_ids)} papers returned")
 
                     batch_completed = True
                     break
@@ -329,14 +274,8 @@ class ArxivRetriever(BaseRetriever):
                     # HTTP 429: rate limited
                     # --------------------------------------
                     if status == 429:
-                        if (
-                            attempt
-                            < max_batch_retries - 1
-                        ):
-                            wait = (
-                                batch_retry_delay
-                                * (attempt + 1)
-                            )
+                        if attempt < max_batch_retries - 1:
+                            wait = batch_retry_delay * (attempt + 1)
 
                             logger.warning(
                                 f"arXiv API HTTP 429 "
@@ -379,46 +318,21 @@ class ArxivRetriever(BaseRetriever):
                     # Fallback:
                     # retrieve papers one by one
                     # --------------------------------------
-                    fallback_batch: list[
-                        ArxivResult
-                    ] = []
+                    fallback_batch: list[ArxivResult] = []
 
-                    for index, paper_id in enumerate(
-                        batch_ids
-                    ):
-                        logger.info(
-                            f"Fallback arXiv request "
-                            f"{index + 1}/"
-                            f"{len(batch_ids)}: "
-                            f"{paper_id}"
-                        )
+                    for index, paper_id in enumerate(batch_ids):
+                        logger.info(f"Fallback arXiv request {index + 1}/{len(batch_ids)}: {paper_id}")
 
                         try:
-                            single_search = (
-                                arxiv.Search(
-                                    id_list=[
-                                        paper_id
-                                    ]
-                                )
-                            )
+                            single_search = arxiv.Search(id_list=[paper_id])
 
-                            single_results = list(
-                                client.results(
-                                    single_search
-                                )
-                            )
+                            single_results = list(client.results(single_search))
 
                             if single_results:
-                                fallback_batch.extend(
-                                    single_results
-                                )
+                                fallback_batch.extend(single_results)
 
                             else:
-                                logger.warning(
-                                    "No arXiv result "
-                                    f"returned for "
-                                    f"{paper_id}"
-                                )
+                                logger.warning(f"No arXiv result returned for {paper_id}")
 
                         except arxiv.HTTPError as paper_exc:
                             paper_status = getattr(
@@ -428,33 +342,18 @@ class ArxivRetriever(BaseRetriever):
                             )
 
                             logger.warning(
-                                "Skipping arXiv "
-                                f"paper {paper_id} "
-                                "because the API "
-                                "returned HTTP "
-                                f"{paper_status}"
+                                f"Skipping arXiv paper {paper_id} because the API returned HTTP {paper_status}"
                             )
 
                         except Exception as paper_exc:
                             logger.warning(
-                                "Skipping arXiv "
-                                f"paper {paper_id} "
-                                "because of "
-                                f"{type(paper_exc).__name__}: "
-                                f"{paper_exc}"
+                                f"Skipping arXiv paper {paper_id} because of {type(paper_exc).__name__}: {paper_exc}"
                             )
 
-                        if (
-                            index + 1
-                            < len(batch_ids)
-                        ):
-                            sleep(
-                                single_paper_interval
-                            )
+                        if index + 1 < len(batch_ids):
+                            sleep(single_paper_interval)
 
-                    raw_papers.extend(
-                        fallback_batch
-                    )
+                    raw_papers.extend(fallback_batch)
 
                     # Mark entire batch attempted,
                     # even if a few papers were skipped.
@@ -476,11 +375,7 @@ class ArxivRetriever(BaseRetriever):
                     # Unexpected errors should not
                     # silently kill the whole run.
                     logger.exception(
-                        "Unexpected error while "
-                        f"retrieving arXiv batch "
-                        f"{batch_number}: "
-                        f"{type(exc).__name__}: "
-                        f"{exc}"
+                        f"Unexpected error while retrieving arXiv batch {batch_number}: {type(exc).__name__}: {exc}"
                     )
 
                     # Count this batch as attempted.
@@ -490,28 +385,17 @@ class ArxivRetriever(BaseRetriever):
                     break
 
             if not batch_completed:
-                logger.warning(
-                    f"arXiv batch "
-                    f"{batch_number} "
-                    "could not be completed."
-                )
+                logger.warning(f"arXiv batch {batch_number} could not be completed.")
 
                 bar.update(len(batch_ids))
 
             # Avoid querying arXiv too aggressively
-            if (
-                i + batch_size
-                < len(all_paper_ids)
-            ):
+            if i + batch_size < len(all_paper_ids):
                 sleep(batch_interval)
 
         bar.close()
 
-        logger.info(
-            f"Successfully retrieved "
-            f"{len(raw_papers)} "
-            "arXiv papers in total"
-        )
+        logger.info(f"Successfully retrieved {len(raw_papers)} arXiv papers in total")
 
         return raw_papers
 
@@ -521,10 +405,7 @@ class ArxivRetriever(BaseRetriever):
     ) -> Paper:
         title = raw_paper.title
 
-        authors = [
-            author.name
-            for author in raw_paper.authors
-        ]
+        authors = [author.name for author in raw_paper.authors]
 
         abstract = raw_paper.summary
         pdf_url = raw_paper.pdf_url
@@ -532,25 +413,19 @@ class ArxivRetriever(BaseRetriever):
         # ----------------------------------------------
         # Try source tar first
         # ----------------------------------------------
-        full_text = extract_text_from_tar(
-            raw_paper
-        )
+        full_text = extract_text_from_tar(raw_paper)
 
         # ----------------------------------------------
         # Then HTML
         # ----------------------------------------------
         if full_text is None:
-            full_text = extract_text_from_html(
-                raw_paper
-            )
+            full_text = extract_text_from_html(raw_paper)
 
         # ----------------------------------------------
         # Finally PDF
         # ----------------------------------------------
         if full_text is None:
-            full_text = extract_text_from_pdf(
-                raw_paper
-            )
+            full_text = extract_text_from_pdf(raw_paper)
 
         return Paper(
             source=self.name,
@@ -572,17 +447,10 @@ def extract_text_from_html(
     )
 
     try:
-        return _extract_text_from_html_worker(
-            html_url
-        )
+        return _extract_text_from_html_worker(html_url)
 
     except Exception as exc:
-        logger.warning(
-            f"HTML extraction failed "
-            f"for {paper.title}: "
-            f"{type(exc).__name__}: "
-            f"{exc}"
-        )
+        logger.warning(f"HTML extraction failed for {paper.title}: {type(exc).__name__}: {exc}")
         return None
 
 
@@ -590,10 +458,7 @@ def extract_text_from_pdf(
     paper: ArxivResult,
 ) -> str | None:
     if paper.pdf_url is None:
-        logger.warning(
-            f"No PDF URL available "
-            f"for {paper.title}"
-        )
+        logger.warning(f"No PDF URL available for {paper.title}")
         return None
 
     return _run_with_hard_timeout(
@@ -611,10 +476,7 @@ def extract_text_from_tar(
     source_url = paper.source_url()
 
     if source_url is None:
-        logger.warning(
-            f"No source URL available "
-            f"for {paper.title}"
-        )
+        logger.warning(f"No source URL available for {paper.title}")
         return None
 
     return _run_with_hard_timeout(
