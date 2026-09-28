@@ -420,9 +420,7 @@ class ArxivRetriever(BaseRetriever):
                                     f"{paper_id}"
                                 )
 
-                        except arxiv.HTTPError as (
-                            paper_exc
-                        ):
+                        except arxiv.HTTPError as paper_exc:
                             paper_status = getattr(
                                 paper_exc,
                                 "status",
@@ -437,9 +435,7 @@ class ArxivRetriever(BaseRetriever):
                                 f"{paper_status}"
                             )
 
-                        except Exception as (
-                            paper_exc
-                        ):
+                        except Exception as paper_exc:
                             logger.warning(
                                 "Skipping arXiv "
                                 f"paper {paper_id} "
